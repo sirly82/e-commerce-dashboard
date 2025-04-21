@@ -4,8 +4,7 @@ import matplotlib.pyplot as plt
 import streamlit as st
 from datetime import datetime
 
-# all_df = pd.read_csv('all_data.csv')
-all_df = pd.read_csv("your_data.csv.gz", compression="gzip")
+all_df = pd.read_csv('all_data.csv')
 all_df['order_purchase_timestamp'] = pd.to_datetime(all_df['order_purchase_timestamp'])
 all_df['year_month'] = all_df['order_purchase_timestamp'].dt.to_period('M').astype(str)
 
@@ -25,23 +24,60 @@ with st.sidebar:
         value=[min_date, max_date]
     )
 
+    st.markdown("### 🛍️ Pilih Kategori Produk")
+    kategori_list = all_df['product_category_name_english'].dropna().unique().tolist()
+    kategori_list.sort()
+    selected_categories = st.multiselect(
+        label="Cari & Pilih Kategori Produk",
+        options=kategori_list,
+        # default=kategori_list,
+        default=[],
+        placeholder="Ketik untuk mencari kategori..."
+    )
+
+
 start_date = pd.to_datetime(start_date)
 end_date = pd.to_datetime(end_date)
 
 filtered_df = all_df[
     (all_df['order_purchase_timestamp'] >= start_date) &
-    (all_df['order_purchase_timestamp'] <= end_date)
+    (all_df['order_purchase_timestamp'] <= end_date) &
+    (all_df['product_category_name_english'].isin(selected_categories))
 ]
 
 def plot_daily_orders(df):
-    daily_orders = df.groupby(df['order_purchase_timestamp'].dt.date)['order_id'].count().reset_index()
-    daily_orders.columns = ['date', 'order_count']
+    df_copy = df.copy()
+    df_copy['date'] = df_copy['order_purchase_timestamp'].dt.date  # Ubah ke hanya tanggal
+
+    daily_orders = (
+        df_copy.groupby('date')['order_id']
+        .nunique()  # Hitung order unik per hari
+        .reset_index()
+        .rename(columns={'order_id': 'order_count'})
+    )
 
     fig, ax = plt.subplots(figsize=(12, 5))
-    sns.lineplot(data=daily_orders, x='date', y='order_count', ax=ax)
-    ax.set_title("Jumlah Pesanan per Hari")
+    sns.lineplot(data=daily_orders, x='date', y='order_count', marker='o', ax=ax)
+    ax.set_title("📅 Jumlah Pesanan per Hari")
     ax.set_xlabel("Tanggal")
     ax.set_ylabel("Jumlah Pesanan")
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    return fig
+
+def plot_daily_orders_by_category(df):
+    df['date'] = df['order_purchase_timestamp'].dt.date
+    daily_category = df.groupby(['date', 'product_category_name_english'])['order_id'].count().reset_index()
+    daily_category.columns = ['date', 'category', 'order_count']
+
+    fig, ax = plt.subplots(figsize=(12, 5))
+    sns.lineplot(data=daily_category, x='date', y='order_count', hue='category', marker='o', ax=ax)
+    ax.set_title("📅 Jumlah Pesanan Harian per Kategori")
+    ax.set_xlabel("Tanggal")
+    ax.set_ylabel("Jumlah Pesanan")
+    ax.legend(title="Kategori", bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.xticks(rotation=45)
+    plt.tight_layout()
     return fig
 
 def plot_order_detail(df):
@@ -68,10 +104,25 @@ def plot_monthly_sales(df):
 
     fig, ax = plt.subplots(figsize=(12, 5))
     sns.barplot(data=monthly_sales, x='month_year', y='order_count', ax=ax)
-    ax.set_title("Penjualan per Bulan")
+    ax.set_title("📆 Penjualan per Bulan")
     ax.set_xlabel("Bulan")
     ax.set_ylabel("Jumlah Pesanan")
     plt.xticks(rotation=45)
+    return fig
+
+def plot_monthly_sales_by_category(df):
+    df['month'] = df['order_purchase_timestamp'].dt.to_period('M').astype(str)
+    monthly_category = df.groupby(['month', 'product_category_name_english'])['order_id'].count().reset_index()
+    monthly_category.columns = ['month', 'category', 'order_count']
+
+    fig, ax = plt.subplots(figsize=(12, 5))
+    sns.barplot(data=monthly_category, x='month', y='order_count', hue='category', ax=ax)
+    ax.set_title("📆 Jumlah Pesanan Bulanan per Kategori")
+    ax.set_xlabel("Bulan")
+    ax.set_ylabel("Jumlah Pesanan")
+    ax.legend(title="Kategori", bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.xticks(rotation=45)
+    plt.tight_layout()
     return fig
 
 def plot_payment_distribution(df):
@@ -118,6 +169,9 @@ def plot_product_description_sales(df):
 st.subheader("📈 Jumlah Pesanan Harian")
 st.pyplot(plot_daily_orders(filtered_df))
 
+st.subheader("📅 Jumlah Pesanan Harian per Kategori")
+st.pyplot(plot_daily_orders_by_category(filtered_df))
+
 st.markdown("### 🗓️ Rincian Order per Hari")
 order_summary = plot_order_detail(filtered_df)
 order_summary.columns = ['Tanggal', 'Kategori Produk', 'Jumlah Pesanan']
@@ -128,6 +182,9 @@ st.table(plot_top_categories(filtered_df))
 
 st.subheader("📅 Penjualan per Bulan")
 st.pyplot(plot_monthly_sales(filtered_df))
+
+st.subheader("📆 Jumlah Pesanan Bulanan per Kategori")
+st.pyplot(plot_monthly_sales_by_category(filtered_df))
 
 st.subheader("💳 Distribusi Metode Pembayaran")
 st.pyplot(plot_payment_distribution(filtered_df))
