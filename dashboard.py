@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import streamlit as st
 from datetime import datetime
 
-all_df = pd.read_csv('all_data.csv')
+all_df = pd.read_csv("your_data.csv.gz", compression="gzip")
 all_df['order_purchase_timestamp'] = pd.to_datetime(all_df['order_purchase_timestamp'])
 all_df['year_month'] = all_df['order_purchase_timestamp'].dt.to_period('M').astype(str)
 
