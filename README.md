@@ -17,3 +17,8 @@ pip install -r requirements.txt
 ```
 streamlit run dashboard.py
 ```
+
+## URL
+```
+https://sirly-e-commerce-dashboard.streamlit.app
+```
